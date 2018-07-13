@@ -9,14 +9,29 @@ import android.util.Log;
 import com.google.android.gms.location.Geofence;
 import com.google.android.gms.location.GeofencingEvent;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.util.ArrayList;
 import java.util.List;
+
+/**
+ * for send data api
+ */
+import java.net.URLConnection;
+import java.net.URL;
+
 
 public class ReceiveTransitionsIntentService extends IntentService {
     protected static final String GeofenceTransitionIntent = "com.cowbell.cordova.geofence.TRANSITION";
     protected BeepHelper beepHelper;
     protected GeoNotificationNotifier notifier;
     protected GeoNotificationStore store;
+    protected URL url;
 
     /**
      * Sets an identifier for the service
@@ -26,6 +41,16 @@ public class ReceiveTransitionsIntentService extends IntentService {
         beepHelper = new BeepHelper();
         store = new GeoNotificationStore(this);
         Logger.setLogger(new Logger(GeofencePlugin.TAG, this, false));
+    }
+
+    protected void asingUrl(){
+      try{
+        this.url = new URL("https://api.lockerroomapp.com/geofence");
+      }
+      catch (IOException e){
+        Logger logger = Logger.getLogger();
+        logger.log(Log.ERROR, e.getMessage());
+      }
     }
 
     /**
@@ -79,8 +104,56 @@ public class ReceiveTransitionsIntentService extends IntentService {
                 }
 
                 if (geoNotifications.size() > 0) {
+
                     broadcastIntent.putExtra("transitionData", Gson.get().toJson(geoNotifications));
                     GeofencePlugin.onTransitionReceived(geoNotifications);
+
+                    HttpURLConnection conn;
+                    OutputStream os;
+                    InputStream is;
+                    try{
+                      logger.log(Log.DEBUG, "send transition api");
+                      this.asingUrl();
+                      conn = (HttpURLConnection) this.url.openConnection();
+
+                      conn.setReadTimeout( 10000 /*milliseconds*/ );
+                      conn.setConnectTimeout( 15000 /* milliseconds */ );
+                      conn.setRequestMethod("POST");
+                      conn.setDoInput(true);
+                      conn.setDoOutput(true);
+                      conn.setFixedLengthStreamingMode(Gson.get().toJson(geoNotifications).getBytes().length);
+
+                      //make some HTTP header nicety
+                      conn.setRequestProperty("Content-Type", "application/json;charset=utf-8");
+                      conn.setRequestProperty("X-Requested-With", "XMLHttpRequest");
+
+                      //open
+                      conn.connect();
+
+                      os = new BufferedOutputStream(conn.getOutputStream());
+                      os.write(Gson.get().toJson(geoNotifications).getBytes());
+                      //clean up
+                      os.flush();
+
+                      //do somehting with response
+                      is = conn.getInputStream();
+
+                      BufferedReader r = new BufferedReader(new InputStreamReader(is));
+                      StringBuilder total = new StringBuilder();
+                      String line;
+                      while ((line = r.readLine()) != null) {
+                        total.append(line).append('\n');
+                      }
+                      logger.log(Log.DEBUG, total.toString());
+
+                      os.close();
+                      is.close();
+                      conn.disconnect();
+                    }
+                    catch (IOException e){
+                      logger.log(Log.ERROR, e.getMessage());
+                    }
+
                 }
             } else {
                 String error = "Geofence transition error: " + transitionType;
