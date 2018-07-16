@@ -16,7 +16,10 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -24,6 +27,7 @@ import java.util.List;
  */
 import java.net.URLConnection;
 import java.net.URL;
+import java.util.TimeZone;
 
 
 public class ReceiveTransitionsIntentService extends IntentService {
@@ -46,6 +50,7 @@ public class ReceiveTransitionsIntentService extends IntentService {
     protected void asingUrl(){
       try{
         this.url = new URL("https://api.lockerroomapp.com/geofence");
+        //this.url = new URL("http://192.168.8.105:8187/geofence");
       }
       catch (IOException e){
         Logger logger = Logger.getLogger();
@@ -96,7 +101,8 @@ public class ReceiveTransitionsIntentService extends IntentService {
 
                     if (geoNotification != null) {
                         if (geoNotification.notification != null) {
-                            notifier.notify(geoNotification.notification);
+                            //notifier.notify(geoNotification.notification);
+                            logger.log(Log.DEBUG, "not sent notification");
                         }
                         geoNotification.transitionType = transitionType;
                         geoNotifications.add(geoNotification);
@@ -122,6 +128,14 @@ public class ReceiveTransitionsIntentService extends IntentService {
                       conn.setDoInput(true);
                       conn.setDoOutput(true);
                       conn.setFixedLengthStreamingMode(Gson.get().toJson(geoNotifications).getBytes().length);
+
+                      //Obtener la fecha local
+                      TimeZone tz = TimeZone.getTimeZone("UTC");
+                      DateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm'Z'"); // Quoted "Z" to indicate UTC, no timezone offset
+                      df.setTimeZone(tz);
+                      String nowAsISO = df.format(new Date());
+
+                      conn.setRequestProperty("dateTime", nowAsISO);
 
                       //make some HTTP header nicety
                       conn.setRequestProperty("Content-Type", "application/json;charset=utf-8");
